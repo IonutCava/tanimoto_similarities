@@ -1,5 +1,17 @@
 # Tanimoto Similarities: Python package to perform fingerprinting and calculate Tanimoto similarities on multiple compounds using RDKit.
 
+### Fork specific:
+
+Simply use regular Python3 to run the script. 
+```
+pip3 install seaborn
+pip3 install rdkit
+python3 tanimoto_similarities.py
+```
+
+For help, use:
+```tanimoto_similarities.py -h```
+
 ### Introduction
 tanimoto_similarities.py script calculates Tanimoto similarities of given molecules in the form of smiles.
 
