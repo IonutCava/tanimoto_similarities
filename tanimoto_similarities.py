@@ -1,124 +1,101 @@
-#!/usr/bin/env python3
-
 import time
 import random
 import sys
-from pathlib import Path
 import seaborn as sns
-
+import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
+from pathlib import Path
 from rdkit import Chem
 from rdkit import DataStructs
 from rdkit.ML.Cluster import Butina
 from rdkit.Chem import Draw
-from rdkit.Chem import rdFingerprintGenerator
+from rdkit.Chem import rdFingerprintGenerator, AllChem
 from rdkit.Chem.Draw import SimilarityMaps
 
-# show full results
+parser = argparse.ArgumentParser("tanimoto_similarities")
+parser.add_argument("--fingerprint", help="The fingerprinting method to use (e.g. fcfc4, avalon, lfcfp6, etc)", default="fcfc4", type=str)
+parser.add_argument("--limit", help="Process only the first n entries from the source file", type=int, required=False, default=sys.maxsize)
+args = parser.parse_args()
+
+fpdict = {}
+fpdict['ecfp0'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 0, nBits=nbits)
+fpdict['ecfp2'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 1, nBits=nbits)
+fpdict['ecfp4'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 2, nBits=nbits)
+fpdict['ecfp6'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 3, nBits=nbits)
+fpdict['ecfc0'] = lambda m: AllChem.GetMorganFingerprint(m, 0)
+fpdict['ecfc2'] = lambda m: AllChem.GetMorganFingerprint(m, 1)
+fpdict['ecfc4'] = lambda m: AllChem.GetMorganFingerprint(m, 2)
+fpdict['ecfc6'] = lambda m: AllChem.GetMorganFingerprint(m, 3)
+fpdict['fcfp2'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 1, useFeatures=True, nBits=nbits)
+fpdict['fcfp4'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 2, useFeatures=True, nBits=nbits)
+fpdict['fcfp6'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 3, useFeatures=True, nBits=nbits)
+fpdict['fcfc2'] = lambda m: AllChem.GetMorganFingerprint(m, 1, useFeatures=True)
+fpdict['fcfc4'] = lambda m: AllChem.GetMorganFingerprint(m, 2, useFeatures=True)
+fpdict['fcfc6'] = lambda m: AllChem.GetMorganFingerprint(m, 3, useFeatures=True)
+fpdict['lecfp4'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 2, nBits=longbits)
+fpdict['lecfp6'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 3, nBits=longbits)
+fpdict['lfcfp4'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 2, useFeatures=True, nBits=longbits)
+fpdict['lfcfp6'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 3, useFeatures=True, nBits=longbits)
+fpdict['maccs'] = lambda m: MACCSkeys.GenMACCSKeys(m)
+fpdict['ap'] = lambda m: Pairs.GetAtomPairFingerprint(m)
+fpdict['tt'] = lambda m: Torsions.GetTopologicalTorsionFingerprintAsIntVect(m)
+fpdict['hashap'] = lambda m: rdMolDescriptors.GetHashedAtomPairFingerprintAsBitVect(m, nBits=nbits)
+fpdict['hashtt'] = lambda m: rdMolDescriptors.GetHashedTopologicalTorsionFingerprintAsBitVect(m, nBits=nbits)
+fpdict['avalon'] = lambda m: fpAvalon.GetAvalonFP(m, nbits)
+fpdict['laval'] = lambda m: fpAvalon.GetAvalonFP(m, longbits)
+fpdict['rdk5'] = lambda m: Chem.RDKFingerprint(m, maxPath=5, fpSize=nbits, nBitsPerHash=2)
+fpdict['rdk6'] = lambda m: Chem.RDKFingerprint(m, maxPath=6, fpSize=nbits, nBitsPerHash=2)
+fpdict['rdk7'] = lambda m: Chem.RDKFingerprint(m, maxPath=7, fpSize=nbits, nBitsPerHash=2)
+
+if not args.fingerprint in fpdict.keys():
+    print("Invalid fingerprinting method!")
+    sys.exit("implemented fingerprints: \n - ecfc0, ecfp0, maccs \n - ap, apbv, tt \n - hashap, hashtt --> with 1024 bits \n - ecfp4, ecfp6, ecfc4, ecfc6 -> with 1024 bits \n - fcfp4, fcfp6, fcfc4, fcfc6 --> with 1024 bits \n - avalon --> with 1024 bits \n - laval --> with 16384 bits \n - lecfp4, lecfp6, lfcfp4, lfcfp6 --> with 16384 bits \n - rdk5, rdk6, rdk7")
+
 np.set_printoptions(threshold=sys.maxsize)
-
-
-# Reading the input CSV file.
-
 ligands_df = pd.read_csv("smiles.csv" , index_col=0 )
-print(ligands_df.head())
 
-
-
-# Creating molecules and storing in an array
 molecules = []
-
-"""Let's fetch the smiles from the input file and store in molecules array
-        We have used '_' because we don't want any other column.
-        If you want to fetch index and any other column, then replace '_' with 
-            index and write column names after a ','.
-"""
+labels = []
 
 for _, smiles in ligands_df[[ "SMILES"]].itertuples():
     molecules.append((Chem.MolFromSmiles(smiles)))
-molecules[:15]
 
+for _, names in ligands_df[[ "Ligand_name"]].itertuples():
+    labels.append(names)
 
-# Creating fingerprints for all molecules
+count = min(len(molecules), args.limit)
 
-rdkit_gen = rdFingerprintGenerator.GetRDKitFPGenerator(maxPath=7)
-fgrps = [rdkit_gen.GetFingerprint(mol) for mol in molecules]
+mfpgen = fpdict[args.fingerprint]
 
+fgrps = [ mfpgen(mol) for mol in molecules[:count]]
 
-# Calculating number of fingerprints
 nfgrps = len(fgrps)
 print("Number of fingerprints:", nfgrps)
 
+similarities = np.zeros((nfgrps, nfgrps))
 
-# Defining a function to calculate similarities among the molecules
-def pairwise_similarity(fingerprints_list):
-    
-    global similarities
+for i in range(1, nfgrps):
+    similarity = DataStructs.BulkTanimotoSimilarity(fgrps[i], fgrps[:i])
+    similarities[i, :i] = similarity
+    similarities[:i, i] = similarity
 
-    similarities = np.zeros((nfgrps, nfgrps))
+sns.set(font_scale=0.8)
 
-    for i in range(1, nfgrps):
-            similarity = DataStructs.BulkTanimotoSimilarity(fgrps[i], fgrps[:i])
-            similarities[i, :i] = similarity
-            similarities[:i, i] = similarity
+cmap = sns.diverging_palette(220, 10, as_cmap=True)
 
-    return similarities
+mask = np.zeros_like(similarities, dtype=bool)
+mask[np.triu_indices_from(mask)] = True
 
-
-# Calculating similarities of molecules
-pairwise_similarity(fgrps)
 tri_lower_diag = np.tril(similarities, k=0)
 
+fig, ax = plt.subplots(figsize=(12,10))
+fig.canvas.manager.set_window_title('Tanimoto Calculator')
+plot = sns.heatmap(tri_lower_diag, annot = True, annot_kws={"fontsize":5}, mask=mask, cmap=cmap, center=0,
+                   square=True, xticklabels=labels[:count], yticklabels=labels[:count], linewidths=.7, cbar_kws={"shrink": .5})
+plt.title(f'Tanimoto similarity using \'{args.fingerprint}\' fingerprinting', fontsize = 18)
+plt.show()
 
-# Visulaizing the similarities
-
-# definging labels to show on heatmap
-labels = ['lig1','lig2','lig3','lig4','lig5','lig6','lig7', 'lig8', 'lig9', 'lig10', 'lig11', 'lig12', 'lig13', 'lig14', 'lig15']
-
-
-def normal_heatmap (sim):
-
-    # writing similalrities to a file
-    f = open("similarities.txt", "w")
-    print (similarities, file=f)
-
-    sns.set(font_scale=0.8)
-
-    # generating the plot
-    
-    plot = sns.heatmap(sim[:15,:15], annot = True, annot_kws={"fontsize":5}, center=0,
-            square=True, xticklabels=labels, yticklabels=labels, linewidths=.7, cbar_kws={"shrink": .5})
-
-    plt.title('Heatmap of Tanimoto Similarities', fontsize = 20) # title with fontsize 20
-
-    plt.show()
-
-    # saving the plot
-
-    fig = plot.get_figure()
-    fig.savefig("tanimoto_heatmap.png") 
-
-
-def lower_tri_heatmap (sim):
-    f = open("similarities_lower_tri.txt", "w")
-
-    print (tri_lower_diag, file=f)
-
-    cmap = sns.diverging_palette(220, 10, as_cmap=True)
-
-    lower_tri_plot = sns.heatmap(tri_lower_diag[:15,:15], annot = False, cmap=cmap,center=0,
-            square=True, xticklabels=labels, yticklabels=labels, linewidths=.7, cbar_kws={"shrink": .5})
-
-    plt.title('Heatmap of Tanimoto Similarities', fontsize = 20)
-
-    plt.show()
-
-    fig = lower_tri_plot.get_figure()
-    fig.savefig("tanimoto_heatmap_lw_tri.png") 
-
-
-normal_heatmap(similarities)
-
-lower_tri_heatmap(similarities)
+fig = plot.get_figure()
+fig.savefig("tanimoto_heatmap.png") 
