@@ -14,6 +14,28 @@ from rdkit.Chem import Draw
 from rdkit.Chem import rdFingerprintGenerator, AllChem
 from rdkit.Chem.Draw import SimilarityMaps
 
+print("Copyright (c) 2024 Ionut Cava - MIT License")
+
+#Permission is hereby granted, free of charge, to any person 
+#obtaining a copy of this software and associated documentation
+#files (the "Software"), to deal in the Software without
+#restriction, including without limitation the rights to use, copy,
+#modify, merge, publish, distribute, sublicense, and/or sell copies
+#of the Software, and to permit persons to whom the Software is
+#furnished to do so, subject to the following conditions:
+#
+#The above copyright notice and this permission notice shall be
+#included in all copies or substantial portions of the Software.
+#
+#THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+#EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+#MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+#NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+#BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+#ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+#CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+#SOFTWARE.
+
 parser = argparse.ArgumentParser("tanimoto_similarities")
 parser.add_argument("--fingerprint", help="The fingerprinting method to use (e.g. fcfc4, avalon, lfcfp6, etc)", default="fcfc4", type=str)
 parser.add_argument("--limit", help="Process only the first n entries from the source file", type=int, required=False, default=sys.maxsize)
