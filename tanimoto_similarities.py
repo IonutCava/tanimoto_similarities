@@ -41,6 +41,9 @@ parser.add_argument("--fingerprint", help="The fingerprinting method to use (e.g
 parser.add_argument("--limit", help="Process only the first n entries from the source file", type=int, required=False, default=sys.maxsize)
 args = parser.parse_args()
 
+nbits = 1024
+longbits = 16384
+
 fpdict = {}
 fpdict['ecfp0'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 0, nBits=nbits)
 fpdict['ecfp2'] = lambda m: AllChem.GetMorganFingerprintAsBitVect(m, 1, nBits=nbits)
